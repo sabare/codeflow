@@ -1,15 +1,28 @@
 from __future__ import annotations
 
+import argparse
 import json
-import sys
 from pathlib import Path
 
-from analysis import build_analysis, build_call_graph, build_call_map
+from analysis import build_analysis
+from flow import build_flow_tree
 
 
 def main() -> None:
-    root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
-    result = build_analysis(root)
+    parser = argparse.ArgumentParser(description="Build a call graph or a readable flow tree.")
+    parser.add_argument("root", nargs="?", default=".", help="Project root to scan.")
+    parser.add_argument("--function", "-f", help="Build a tree for one function.")
+    parser.add_argument("--depth", "-d", type=int, default=2, help="Tree depth to expand.")
+    args = parser.parse_args()
+
+    root = Path(args.root)
+    analysis = build_analysis(root)
+
+    if args.function:
+        result = build_flow_tree(analysis, args.function, args.depth)
+    else:
+        result = analysis
+
     print(json.dumps(result, indent=2, sort_keys=True))
 
 

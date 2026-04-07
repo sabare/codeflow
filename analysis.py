@@ -174,6 +174,7 @@ def build_analysis(root: Path) -> Dict[str, object]:
     lambda_functions: Set[str] = set()
     project_roots: Set[str] = set()
     trees: List[Tuple[ast.AST, Dict[str, str], ScopeBindings]] = []
+    function_sources: Dict[str, str] = {}
 
     for file_path in iter_python_files(root):
         try:
@@ -182,7 +183,7 @@ def build_analysis(root: Path) -> Dict[str, object]:
         except (OSError, SyntaxError):
             continue
 
-        definition_collector = DefinitionCollector()
+        definition_collector = DefinitionCollector(source)
         definition_collector.visit(tree)
         definitions.update(definition_collector.function_names)
         class_names.update(definition_collector.class_names)
@@ -190,6 +191,7 @@ def build_analysis(root: Path) -> Dict[str, object]:
             class_methods.setdefault(class_name, set()).update(methods)
         for class_name, bases in definition_collector.class_bases.items():
             class_bases[class_name] = list(bases)
+        function_sources.update(definition_collector.function_sources)
 
         import_collector = ImportCollector()
         import_collector.visit(tree)
@@ -243,6 +245,7 @@ def build_analysis(root: Path) -> Dict[str, object]:
             "classes": sorted(class_names),
         },
         "lambdas": sorted(lambda_functions),
+        "sources": function_sources,
     }
 
 

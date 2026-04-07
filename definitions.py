@@ -7,12 +7,14 @@ from utils import get_dotted_name, get_qualified_name
 
 
 class DefinitionCollector(ast.NodeVisitor):
-    def __init__(self) -> None:
+    def __init__(self, source: str = "") -> None:
+        self.source = source
         self.function_names: Set[str] = set()
         self.class_names: Set[str] = set()
         self.class_methods: Dict[str, Set[str]] = {}
         self.class_bases: Dict[str, List[str]] = {}
         self.decorators: Dict[str, List[str]] = {}
+        self.function_sources: Dict[str, str] = {}
         self.scope: List[str] = []
         self.class_stack: List[str] = []
         self.function_depth = 0
@@ -20,6 +22,8 @@ class DefinitionCollector(ast.NodeVisitor):
     def _record_function(self, node: ast.AST) -> None:
         qualified_name = get_qualified_name(self.scope, node.name)
         self.function_names.add(qualified_name)
+        if self.source:
+            self.function_sources[qualified_name] = ast.get_source_segment(self.source, node) or ""
 
         if self.class_stack and self.function_depth == 0:
             self.class_methods.setdefault(self.class_stack[-1], set()).add(node.name)
