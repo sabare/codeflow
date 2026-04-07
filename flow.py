@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Set
 
@@ -13,7 +14,6 @@ def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: 
     builtin_calls = analysis.get("builtin_calls", {})
     decorator_calls = analysis.get("decorator_calls", {})
     sources = analysis.get("sources", {})
-    summary_cache: Dict[str, str] = {}
 
     if root_function not in project_graph:
         return {
@@ -23,27 +23,12 @@ def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: 
             "available_functions": sorted(project_graph.keys()),
         }
 
-    def get_summary(name: str) -> str:
-        if name in summary_cache:
-            return summary_cache[name]
-
-        code = sources.get(name, "")
-        if code:
-            summary = summarize_function(code)
-            if summary:
-                summary_cache[name] = summary
-                return summary
-
-        children = list(project_graph.get(name, []))
-        summary_cache[name] = f"Calls {', '.join(children[:3])}." if children else "No project calls detected."
-        return summary_cache[name]
-
     def expand(name: str, depth: int, path: Set[str]) -> Dict[str, Any]:
         project_children = list(project_graph.get(name, []))
         node = {
             "name": name,
             "depth": depth,
-            "summary": get_summary(name),
+            "summary": _fallback_summary(project_children),
             "children": [],
             "project_calls": project_children,
             "stdlib_calls": list(stdlib_calls.get(name, [])),
@@ -76,6 +61,17 @@ def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: 
         return node
 
     tree = expand(root_function, 0, {root_function})
+    reachable_names = _collect_tree_names(tree)
+    batched_summaries = summarize_functions(
+        {
+            name: str(sources.get(name, ""))
+            for name in sorted(reachable_names)
+            if isinstance(sources.get(name, ""), str) and str(sources.get(name, "")).strip()
+        }
+    )
+    if batched_summaries:
+        _apply_summaries(tree, batched_summaries)
+
     flow_summary = summarize_flow(sources.get(root_function, ""), tree)
     if not flow_summary:
         flow_summary = "\n".join(_flatten_call_tree(tree))
@@ -105,21 +101,58 @@ def _flatten_call_tree(call_tree: Dict[str, Any], depth: int = 0) -> List[str]:
     return lines
 
 
-def summarize_function(code: str) -> str:
-    prompt = f"""Summarize what this function does in one sentence.
-Focus on purpose, not implementation details.
-Keep it under 20 words.
-Return one clean line only.
+def _fallback_summary(children: List[str]) -> str:
+    if children:
+        return f"Calls {len(children)} project functions."
+    return "Calls 0 project functions."
 
-Function code:
-{code}
+
+def summarize_functions(codes_by_name: Dict[str, str]) -> Dict[str, str]:
+    if not codes_by_name:
+        return {}
+
+    payload = [
+        {"name": name, "code": code}
+        for name, code in sorted(codes_by_name.items())
+        if code.strip()
+    ]
+    if not payload:
+        return {}
+
+    prompt = f"""Summarize each function in one short sentence.
+Return strict JSON only in the format:
+{{"function_name": "summary", "...": "..."}}
+
+Summaries should focus on purpose, not implementation details.
+Keep each summary under 20 words.
+
+Functions:
+{json.dumps(payload, indent=2)}
 """
-    summary = call_llm(prompt).strip()
-    summary = " ".join(summary.split())
-    words = summary.split()
-    if len(words) > 20:
-        summary = " ".join(words[:20])
-    return summary
+    response = call_llm(prompt).strip()
+    if not response:
+        return {}
+
+    try:
+        parsed = json.loads(response)
+    except json.JSONDecodeError:
+        return {}
+
+    if not isinstance(parsed, dict):
+        return {}
+
+    summaries: Dict[str, str] = {}
+    for name, summary in parsed.items():
+        if not isinstance(name, str) or not isinstance(summary, str):
+            continue
+        cleaned = " ".join(summary.split())
+        if cleaned:
+            words = cleaned.split()
+            if len(words) > 20:
+                cleaned = " ".join(words[:20])
+            summaries[name] = cleaned
+
+    return summaries
 
 
 def summarize_flow(root_code: str, call_tree: dict) -> str:
@@ -141,3 +174,20 @@ Call tree:
         return flattened_tree
     flow = re.sub(r"\n{3,}", "\n\n", flow)
     return flow
+
+
+def _collect_tree_names(node: Dict[str, Any]) -> Set[str]:
+    names = {str(node.get("name", ""))}
+    for child in node.get("children", []) or []:
+        if isinstance(child, dict):
+            names.update(_collect_tree_names(child))
+    return {name for name in names if name}
+
+
+def _apply_summaries(node: Dict[str, Any], summaries: Dict[str, str]) -> None:
+    name = str(node.get("name", ""))
+    if name in summaries:
+        node["summary"] = summaries[name]
+    for child in node.get("children", []) or []:
+        if isinstance(child, dict):
+            _apply_summaries(child, summaries)

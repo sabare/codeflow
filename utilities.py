@@ -15,6 +15,7 @@ SYSTEM_PROMPT = "You are a concise assistant that explains code clearly and brie
 
 
 def call_llm(prompt: str) -> str:
+    # return "Hello, world!"
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key or OpenAI is None:
         return ""
