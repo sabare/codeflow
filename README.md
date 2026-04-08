@@ -32,7 +32,7 @@ It scans a project, finds functions and classes, maps call relationships, and re
 ### 1. Clone the repository
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/sabare/codeflow.git
 cd codeflow
 ```
 
@@ -153,7 +153,3 @@ Contributions are welcome. A good starting point is to:
 1. Open an issue or discussion describing the change.
 2. Keep edits focused and small where possible.
 3. Add or update tests if you change analysis behavior.
-
-## License
-
-Add a license file before distributing the project publicly if one is not already present.
