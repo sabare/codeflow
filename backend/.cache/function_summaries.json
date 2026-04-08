@@ -1,0 +1,98 @@
+{
+  "_apply_summaries": {
+    "fingerprint": "b5b10fec44340af2fa33db7bb6ced8ba422c3803879416362c37f7e5a7d77190",
+    "summary": "Attach provided summaries to matching node names in the tree."
+  },
+  "_build_tree": {
+    "fingerprint": "2c595e8a5c71f56a95eff47216e839577960aa30caa5e5197cd26d22e489ef32",
+    "summary": "Constructs an internal tree of functions and relationships for analysis."
+  },
+  "_build_tree.expand": {
+    "fingerprint": "9ea2584eca23d98df8fe4066cad6b3113686a7dfab132bafa687d7716c5e08d0",
+    "summary": "Expands a function node into its child relationships for display."
+  },
+  "_collect_tree_names": {
+    "fingerprint": "d592ea0e035c6704b5b53ff00b8ab7e2f7b990a0e96b56a46f70e16d49662e0b",
+    "summary": "Collects all function names present in the tree."
+  },
+  "_display_name": {
+    "fingerprint": "885b5971aba7e1015648d68873f83a83b148c7260b660ccae9a1371545445991",
+    "summary": "Derives a readable name from a filesystem path."
+  },
+  "_fallback_summary": {
+    "fingerprint": "d8d5a204d33020f74f9edc1e4d85ad0247bcd48d6efe924f6caa9cbb552cc48f",
+    "summary": "Provides a generic summary based on child calls."
+  },
+  "_fingerprint": {
+    "fingerprint": "dc1f2879490e55a57ad20b40179a260c276f75c976faea6fb8964b460a578d96",
+    "summary": "Computes a hash fingerprint for code content."
+  },
+  "_flatten_call_tree": {
+    "fingerprint": "168412a837a76d5a23304db916c5afa75c69e4f94575915db9795cef26ca0610",
+    "summary": "Flattens a hierarchical call tree into readable lines."
+  },
+  "_load_summary_cache": {
+    "fingerprint": "1b4ac5e901d1fe135179e7c44a01d95a6267da8c08c250c3eea3b6f044add5d5",
+    "summary": "Loads cached function summaries to speed up analysis."
+  },
+  "_mock_analysis": {
+    "fingerprint": "207e5ef12802a3043ae37237b3d209628faface22ec4061ffb8117475b4f5cd3",
+    "summary": "Returns a mock analysis structure for development."
+  },
+  "_save_summary_cache": {
+    "fingerprint": "1df29788692fbded0301ca60c57c74469d5e26882a5721bc4792dc2a37ed0d7c",
+    "summary": "Saves updated summaries to a cache file."
+  },
+  "analyze": {
+    "fingerprint": "4484bb4215274a645e532350adc41827534dbbf1f236b2942650681a5a8213fc",
+    "summary": "Validates the folder path, builds analysis, and optionally returns a function flow tree; raises HTTP errors on failure."
+  },
+  "bind_assignment": {
+    "fingerprint": "f4b3b9b01f2599f4dffc6e379a8c273734edb20e68c08e1e8fce49ce1cd1bd21",
+    "summary": "Binds assignment targets to inferred callables in a scope."
+  },
+  "build_analysis": {
+    "fingerprint": "2c1d15125cfdb02e50c563ca2b9a5e1a97eb7776d10bed992908574614b66482",
+    "summary": "Builds a functional analysis tree for a path."
+  },
+  "build_flow_tree": {
+    "fingerprint": "a4a872642b4f8a1d9f93c2e27a222c1f5db550d994a10a923ef7d753674a2df5",
+    "summary": "Creates a flow tree showing function call relationships."
+  },
+  "build_flow_tree.expand": {
+    "fingerprint": "aa08eff67afd54e7cf4bd4f7c44673e49b49df80735fb51dd20103cd4b490ced",
+    "summary": "Expands a flow-tree node to reveal deeper calls."
+  },
+  "call_llm": {
+    "fingerprint": "e4aa38fb61e98027648235e0e7c549db5ed7cae07d5f002f3d675fb63a0894f8",
+    "summary": "Calls a language model to generate text from a prompt."
+  },
+  "collect_module_bindings": {
+    "fingerprint": "a36a55722a3035fb53acfa027921389ffd49c38da509da841bbba4d557aa9cef",
+    "summary": "Collects variable bindings from a Python AST into a scope."
+  },
+  "get_qualified_name": {
+    "fingerprint": "306325acf41d41ad6f915ca31e14b352b0785ab0306d2b0658add7b2062e0688",
+    "summary": "Returns a dot-separated qualified name from scope and name."
+  },
+  "iter_python_files": {
+    "fingerprint": "42d30254d72e84969a01153bd2ad244cc5b47f61f648d854799cacb2537204e1",
+    "summary": "Iterates over Python files, excluding ignored directories."
+  },
+  "iter_target_names": {
+    "fingerprint": "69a1ae135b5ce17a76d75fe24a5375a7d166e69799ddf08000d356d30cc3ad3c",
+    "summary": "Extracts target names from assignment targets."
+  },
+  "module_name_for": {
+    "fingerprint": "9f428410d655ee4981e41407a2b7d08d395f4eb38fa70d5ae8adcd08711f79aa",
+    "summary": "Infers module name from a file path relative to root."
+  },
+  "summarize_flow": {
+    "fingerprint": "c0c1898beb493bbb2ff37d4f40cbb90f40383f30a40497fa40b706f1260619cb",
+    "summary": "Produces a concise explanation of execution flow using a language model."
+  },
+  "summarize_functions": {
+    "fingerprint": "35b805d726d0f6b46babd863f920f2c6614f1115e5890ac5bf508dd9156b0c58",
+    "summary": "Generates concise per-function summaries, using caching when possible."
+  }
+}

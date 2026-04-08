@@ -47,7 +47,7 @@ def analyze(path: str, function: str | None = None) -> dict:
             return build_flow_tree(analysis, function)
         logger.info("Returning project analysis for folder=%s", folder)
         return analysis
-    except Exception as exc:  # pragma: no cover - defensive API guard
+    except Exception as exc: #defensive API guard
         logger.exception("Analysis failed for folder=%s function=%s", folder, function or "<none>")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}") from exc
 

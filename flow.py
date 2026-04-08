@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import json
 import re
+from hashlib import sha256
+from pathlib import Path
 from typing import Any, Dict, List, Set
 
 from utilities import call_llm
 
 
-def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: int = 2) -> Dict[str, Any]:
+CACHE_PATH = Path(".cache/function_summaries.json")
+
+
+def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: int | None = None) -> Dict[str, Any]:
     project_graph = analysis.get("project_graph", {})
     stdlib_calls = analysis.get("stdlib_calls", {})
     external_calls = analysis.get("external_calls", {})
@@ -36,11 +41,8 @@ def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: 
             "external_calls": list(external_calls.get(name, [])),
             "decorators": list(decorator_calls.get(name, [])),
             "expandable": bool(project_children),
-            "truncated": depth >= max_depth and bool(project_children),
+            "truncated": False,
         }
-
-        if depth >= max_depth:
-            return node
 
         for child in project_children:
             if child in path:
@@ -111,13 +113,37 @@ def summarize_functions(codes_by_name: Dict[str, str]) -> Dict[str, str]:
     if not codes_by_name:
         return {}
 
+    cache = _load_summary_cache()
+    summaries: Dict[str, str] = {}
+    to_summarize: Dict[str, str] = {}
+
+    for name, code in sorted(codes_by_name.items()):
+        cleaned_code = code.strip()
+        if not cleaned_code:
+          continue
+        fingerprint = _fingerprint(cleaned_code)
+        cached_entry = cache.get(name)
+        if (
+            isinstance(cached_entry, dict)
+            and cached_entry.get("fingerprint") == fingerprint
+            and isinstance(cached_entry.get("summary"), str)
+            and cached_entry["summary"].strip()
+        ):
+            summaries[name] = " ".join(cached_entry["summary"].split())
+            continue
+
+        to_summarize[name] = cleaned_code
+
+    if not to_summarize:
+        return summaries
+
     payload = [
         {"name": name, "code": code}
-        for name, code in sorted(codes_by_name.items())
+        for name, code in sorted(to_summarize.items())
         if code.strip()
     ]
     if not payload:
-        return {}
+        return summaries
 
     prompt = f"""Summarize each function in one short sentence.
 Return strict JSON only in the format:
@@ -131,7 +157,7 @@ Functions:
 """
     response = call_llm(prompt).strip()
     if not response:
-        return {}
+        return summaries
 
     try:
         parsed = json.loads(response)
@@ -139,9 +165,9 @@ Functions:
         return {}
 
     if not isinstance(parsed, dict):
-        return {}
+        return summaries
 
-    summaries: Dict[str, str] = {}
+    updated_cache = dict(cache)
     for name, summary in parsed.items():
         if not isinstance(name, str) or not isinstance(summary, str):
             continue
@@ -151,8 +177,50 @@ Functions:
             if len(words) > 20:
                 cleaned = " ".join(words[:20])
             summaries[name] = cleaned
+            updated_cache[name] = {
+                "summary": cleaned,
+                "fingerprint": _fingerprint(to_summarize.get(name, "")),
+            }
+
+    _save_summary_cache(updated_cache)
 
     return summaries
+
+
+def _fingerprint(code: str) -> str:
+    return sha256(code.encode("utf-8")).hexdigest()
+
+
+def _load_summary_cache() -> Dict[str, Dict[str, str]]:
+    try:
+        if not CACHE_PATH.exists():
+            return {}
+        with CACHE_PATH.open("r", encoding="utf-8") as handle:
+            parsed = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    if not isinstance(parsed, dict):
+        return {}
+
+    cache: Dict[str, Dict[str, str]] = {}
+    for name, entry in parsed.items():
+        if not isinstance(name, str) or not isinstance(entry, dict):
+            continue
+        summary = entry.get("summary")
+        fingerprint = entry.get("fingerprint")
+        if isinstance(summary, str) and isinstance(fingerprint, str):
+            cache[name] = {"summary": summary, "fingerprint": fingerprint}
+    return cache
+
+
+def _save_summary_cache(cache: Dict[str, Dict[str, str]]) -> None:
+    try:
+        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with CACHE_PATH.open("w", encoding="utf-8") as handle:
+            json.dump(cache, handle, indent=2, sort_keys=True)
+    except OSError:
+        pass
 
 
 def summarize_flow(root_code: str, call_tree: dict) -> str:

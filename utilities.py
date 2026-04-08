@@ -9,6 +9,10 @@ try:
 except ImportError:
     OpenAI = None
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 dotenv.load_dotenv()
 
 SYSTEM_PROMPT = "You are a concise assistant that explains code clearly and briefly."
@@ -31,6 +35,7 @@ def call_llm(prompt: str) -> str:
         timeout=30,
     )
     content = completion.choices[0].message.content
+    logger.info(f"Content: {content}")
     if not content:
         return ""
     return content

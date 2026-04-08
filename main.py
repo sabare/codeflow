@@ -12,7 +12,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build a call graph or a readable flow tree.")
     parser.add_argument("root", nargs="?", default=".", help="Project root to scan.")
     parser.add_argument("--function", "-f", help="Build a tree for one function.")
-    parser.add_argument("--depth", "-d", type=int, default=2, help="Tree depth to expand.")
+    parser.add_argument(
+        "--depth",
+        "-d",
+        type=int,
+        default=None,
+        help="Tree depth to expand. Leave unset for the full tree.",
+    )
     args = parser.parse_args()
 
     root = Path(args.root)
