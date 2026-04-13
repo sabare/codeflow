@@ -30,21 +30,45 @@ logger.info("Backend starting from cwd=%s, file=%s", os.getcwd(), __file__)
 
 
 @app.get("/analyze")
-def analyze(path: str, function: str | None = None) -> dict:
+def analyze(
+    path: str,
+    function: str | None = None,
+    max_depth: int | None = None,
+    include_stdlib: bool = True,
+    include_external: bool = True,
+    include_builtin: bool = True,
+) -> dict:
     folder = Path(path).expanduser().resolve()
-    logger.info("/analyze requested path=%s function=%s", folder, function or "<none>")
+    logger.info(
+        "/analyze requested path=%s function=%s max_depth=%s stdlib=%s external=%s builtin=%s",
+        folder,
+        function or "<none>",
+        max_depth if max_depth is not None else "<none>",
+        include_stdlib,
+        include_external,
+        include_builtin,
+    )
 
     if not folder.exists() or not folder.is_dir():
         logger.warning("/analyze rejected invalid folder=%s", folder)
         raise HTTPException(status_code=400, detail="Path must point to an existing folder.")
-    logger.info(function)
+    if max_depth is not None and max_depth < 0:
+        raise HTTPException(status_code=400, detail="max_depth must be a non-negative integer.")
+
     try:
         analysis = build_analysis(folder)
         if function:
             from flow import build_flow_tree
 
             logger.info("Building function flow tree for %s", function)
-            return build_flow_tree(analysis, function)
+            return build_flow_tree(
+                analysis,
+                function,
+                max_depth=max_depth,
+                include_stdlib=include_stdlib,
+                include_external=include_external,
+                include_builtin=include_builtin,
+            )
         logger.info("Returning project analysis for folder=%s", folder)
         return analysis
     except Exception as exc: #defensive API guard

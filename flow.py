@@ -12,13 +12,21 @@ from utilities import call_llm
 CACHE_PATH = Path(".cache/function_summaries.json")
 
 
-def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: int | None = None) -> Dict[str, Any]:
+def build_flow_tree(
+    analysis: Dict[str, object],
+    root_function: str,
+    max_depth: int | None = None,
+    include_stdlib: bool = True,
+    include_external: bool = True,
+    include_builtin: bool = True,
+) -> Dict[str, Any]:
     project_graph = analysis.get("project_graph", {})
     stdlib_calls = analysis.get("stdlib_calls", {})
     external_calls = analysis.get("external_calls", {})
     builtin_calls = analysis.get("builtin_calls", {})
     decorator_calls = analysis.get("decorator_calls", {})
     sources = analysis.get("sources", {})
+    depth_limit = None if max_depth is None else max(0, max_depth)
 
     if root_function not in project_graph:
         return {
@@ -28,6 +36,16 @@ def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: 
             "available_functions": sorted(project_graph.keys()),
         }
 
+    def _visible_calls(calls: object, enabled: bool) -> List[str]:
+        if not enabled or not isinstance(calls, list):
+            return []
+        return [str(call) for call in calls if str(call)]
+
+    def _depth_summary(name: str, project_children: List[str]) -> str:
+        if project_children:
+            return f"Calls {len(project_children)} project functions. Depth limit reached."
+        return _fallback_summary(project_children)
+
     def expand(name: str, depth: int, path: Set[str]) -> Dict[str, Any]:
         project_children = list(project_graph.get(name, []))
         node = {
@@ -36,13 +54,20 @@ def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: 
             "summary": _fallback_summary(project_children),
             "children": [],
             "project_calls": project_children,
-            "stdlib_calls": list(stdlib_calls.get(name, [])),
-            "builtin_calls": list(builtin_calls.get(name, [])),
-            "external_calls": list(external_calls.get(name, [])),
+            "stdlib_calls": _visible_calls(stdlib_calls.get(name, []), include_stdlib),
+            "builtin_calls": _visible_calls(builtin_calls.get(name, []), include_builtin),
+            "external_calls": _visible_calls(external_calls.get(name, []), include_external),
             "decorators": list(decorator_calls.get(name, [])),
+            "source": str(sources.get(name, "")),
             "expandable": bool(project_children),
             "truncated": False,
         }
+
+        if depth_limit is not None and depth >= depth_limit:
+            if project_children:
+                node["summary"] = _depth_summary(name, project_children)
+                node["truncated"] = True
+            return node
 
         for child in project_children:
             if child in path:
@@ -81,6 +106,11 @@ def build_flow_tree(analysis: Dict[str, object], root_function: str, max_depth: 
     return {
         "root": root_function,
         "max_depth": max_depth,
+        "filters": {
+            "stdlib": include_stdlib,
+            "external": include_external,
+            "builtin": include_builtin,
+        },
         "found": True,
         "tree": tree,
         "flow_summary": flow_summary,
@@ -120,7 +150,7 @@ def summarize_functions(codes_by_name: Dict[str, str]) -> Dict[str, str]:
     for name, code in sorted(codes_by_name.items()):
         cleaned_code = code.strip()
         if not cleaned_code:
-          continue
+            continue
         fingerprint = _fingerprint(cleaned_code)
         cached_entry = cache.get(name)
         if (
@@ -162,7 +192,7 @@ Functions:
     try:
         parsed = json.loads(response)
     except json.JSONDecodeError:
-        return {}
+        return summaries
 
     if not isinstance(parsed, dict):
         return summaries

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import ReactFlow, { Background, Controls, MarkerType } from "reactflow";
+import ReactFlow, { Background, Controls, MarkerType, MiniMap } from "reactflow";
 import { AnalysisNode } from "./AnalysisNode.jsx";
 
 const nodeTypes = {
@@ -16,6 +16,14 @@ const BASE_EDGE_STYLE = {
   stroke: "rgba(148, 163, 184, 0.42)",
   strokeWidth: 1.85,
   filter: "drop-shadow(0 0 4px rgba(104, 166, 255, 0.14))",
+};
+
+const MINIMAP_COLORS = {
+  root: "#facc15",
+  class: "#a855f7",
+  entrypoint: "#fb923c",
+  helper: "#22c55e",
+  function: "#60a5fa",
 };
 
 function EmptyState({ isLoading }) {
@@ -36,23 +44,65 @@ function EmptyState({ isLoading }) {
 
 export function GraphCanvas({ nodes, edges, selectedNodeId, onNodeSelect, isLoading }) {
   const [flowInstance, setFlowInstance] = useState(null);
+  const [miniMapVisible, setMiniMapVisible] = useState(false);
 
-  const connectedEdgeIds = useMemo(() => {
-    if (!selectedNodeId) {
-      return new Set();
+  const graphFocus = useMemo(() => {
+    const parentByNode = new Map();
+    const childEdgeIdsByNode = new Map();
+    const edgeIdByPair = new Map();
+
+    for (const edge of edges) {
+      parentByNode.set(edge.target, edge.source);
+      edgeIdByPair.set(`${edge.source}=>${edge.target}`, edge.id);
+      if (!childEdgeIdsByNode.has(edge.source)) {
+        childEdgeIdsByNode.set(edge.source, []);
+      }
+      childEdgeIdsByNode.get(edge.source).push(edge.id);
     }
 
-    return new Set(
-      edges
-        .filter((edge) => edge.source === selectedNodeId || edge.target === selectedNodeId)
-        .map((edge) => edge.id),
-    );
+    const pathNodeIds = new Set();
+    const pathEdgeIds = new Set();
+    const childNodeIds = new Set();
+
+    if (selectedNodeId) {
+      let current = selectedNodeId;
+      while (current) {
+        pathNodeIds.add(current);
+        const parent = parentByNode.get(current);
+        if (!parent) {
+          break;
+        }
+        const edgeId = edgeIdByPair.get(`${parent}=>${current}`);
+        if (edgeId) {
+          pathEdgeIds.add(edgeId);
+        }
+        current = parent;
+      }
+
+      for (const edgeId of childEdgeIdsByNode.get(selectedNodeId) ?? []) {
+        pathEdgeIds.add(edgeId);
+      }
+
+      for (const edge of edges) {
+        if (edge.source === selectedNodeId) {
+          childNodeIds.add(edge.target);
+        }
+      }
+    }
+
+    return {
+      pathNodeIds,
+      pathEdgeIds,
+      childNodeIds,
+    };
   }, [edges, selectedNodeId]);
 
   const decoratedNodes = useMemo(
     () =>
       nodes.map((node) => {
         const isSelected = node.id === selectedNodeId;
+        const isPathNode = graphFocus.pathNodeIds.has(node.id);
+        const isChildNode = graphFocus.childNodeIds.has(node.id);
         const depth = Number(node.data?.depth ?? 0);
         const role = String(node.data?.role ?? "function");
         const depthFade = Math.min(depth * 0.08, 0.3);
@@ -67,17 +117,24 @@ export function GraphCanvas({ nodes, edges, selectedNodeId, onNodeSelect, isLoad
           selected: isSelected,
           style: {
             ...node.style,
-            opacity: selectedNodeId && !isSelected ? Math.max(0.44, baseOpacity - 0.16) : baseOpacity + roleBoost,
+            opacity:
+              selectedNodeId && !isSelected && !isPathNode && !isChildNode
+                ? Math.max(0.18, baseOpacity - 0.46)
+                : isSelected || isPathNode
+                  ? Math.max(0.96, baseOpacity + roleBoost)
+                  : Math.max(0.7, baseOpacity + roleBoost - 0.1),
             filter: isSelected
               ? "drop-shadow(0 0 24px rgba(96, 165, 250, 0.35))"
-              : depth === 0
+              : isPathNode
+                ? "drop-shadow(0 0 18px rgba(96, 165, 250, 0.22))"
+                : depth === 0
                 ? "drop-shadow(0 0 18px rgba(250, 204, 21, 0.18))"
                 : "none",
             "--node-scale": scale,
           },
         };
       }),
-    [nodes, selectedNodeId],
+    [graphFocus.childNodeIds, graphFocus.pathNodeIds, nodes, selectedNodeId],
   );
 
   function focusNode(nodeId) {
@@ -106,7 +163,7 @@ export function GraphCanvas({ nodes, edges, selectedNodeId, onNodeSelect, isLoad
   const decoratedEdges = useMemo(
     () =>
       edges.map((edge) => {
-        const isActive = connectedEdgeIds.has(edge.id);
+        const isActive = graphFocus.pathEdgeIds.has(edge.id);
 
         return {
           ...edge,
@@ -120,11 +177,11 @@ export function GraphCanvas({ nodes, edges, selectedNodeId, onNodeSelect, isLoad
           style: {
             ...BASE_EDGE_STYLE,
             ...(isActive ? ACTIVE_EDGE_STYLE : null),
-            opacity: selectedNodeId && !isActive ? 0.18 : 0.9,
+            opacity: selectedNodeId && !isActive ? 0.12 : 0.92,
           },
         };
       }),
-    [connectedEdgeIds, edges, selectedNodeId],
+    [edges, graphFocus.pathEdgeIds, selectedNodeId],
   );
 
   useEffect(() => {
@@ -155,6 +212,18 @@ export function GraphCanvas({ nodes, edges, selectedNodeId, onNodeSelect, isLoad
 
     return () => window.cancelAnimationFrame(frame);
   }, [flowInstance, selectedNodeId]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        setMiniMapVisible((current) => !current);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   if (nodes.length === 0) {
     return <EmptyState isLoading={isLoading} />;
@@ -194,6 +263,41 @@ export function GraphCanvas({ nodes, edges, selectedNodeId, onNodeSelect, isLoad
         }}
       >
         <Controls />
+        <div className="graph-minimap-shell">
+          <button
+            className="graph-minimap-toggle"
+            type="button"
+            onClick={() => setMiniMapVisible((current) => !current)}
+            aria-label={miniMapVisible ? "Hide mini map" : "Show mini map"}
+            aria-pressed={miniMapVisible}
+            title={miniMapVisible ? "Hide mini map (Cmd/Ctrl+M)" : "Show mini map (Cmd/Ctrl+M)"}
+          >
+            <span aria-hidden="true">{miniMapVisible ? "‹" : "›"}</span>
+          </button>
+          {miniMapVisible ? (
+            <MiniMap
+              position="bottom-right"
+              pannable
+              zoomable
+              ariaLabel="Graph mini map"
+              nodeColor={(node) => MINIMAP_COLORS[String(node?.data?.role ?? "function")] ?? MINIMAP_COLORS.function}
+              nodeStrokeColor={(node) =>
+                graphFocus.pathNodeIds.has(node.id) ? "rgba(255,255,255,0.95)" : "rgba(15, 23, 42, 0.9)"
+              }
+              nodeBorderRadius={8}
+              nodeStrokeWidth={1.4}
+              onNodeClick={(_, node) => {
+                onNodeSelect(node.id);
+              }}
+              style={{
+                background: "rgba(12, 14, 20, 0.92)",
+                border: "1px solid rgba(148, 163, 184, 0.14)",
+                borderRadius: "16px",
+                boxShadow: "0 18px 36px rgba(0, 0, 0, 0.28)",
+              }}
+            />
+          ) : null}
+        </div>
         <Background gap={26} size={1} color="rgba(148, 163, 184, 0.12)" />
       </ReactFlow>
     </div>

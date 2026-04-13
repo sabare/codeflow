@@ -48,12 +48,21 @@ export function ControlDrawer({
   loadingFunctions,
   loadingAnalysis,
   error,
+  flowMaxDepth,
+  setFlowMaxDepth,
+  includeStdlib,
+  setIncludeStdlib,
+  includeExternal,
+  setIncludeExternal,
+  includeBuiltin,
+  setIncludeBuiltin,
   onLoadFolder,
   onOpenDirectory,
   onSelectFile,
   onAnalyzeFunction,
 }) {
   const node = selectedNode?.data ?? null;
+  const sourceSnippet = String(node?.raw?.source ?? "").trim();
   const projectCalls = normalizeList(node?.projectCalls);
   const directCalls = normalizeList(node?.calls);
   const stdlibCalls = normalizeList(node?.stdlibCalls);
@@ -66,8 +75,8 @@ export function ControlDrawer({
   return (
     <>
       {!open ? (
-        <button className="drawer-toggle" type="button" onClick={() => onOpenChange(true)}>
-          Open controls
+        <button className="drawer-toggle" type="button" onClick={() => onOpenChange(true)} aria-label="Open controls">
+          <span aria-hidden="true">☰</span>
         </button>
       ) : null}
 
@@ -84,7 +93,7 @@ export function ControlDrawer({
               onClick={() => onOpenChange(false)}
               aria-label="Close controls"
             >
-              Hide
+              ×
             </button>
           </div>
 
@@ -240,6 +249,60 @@ export function ControlDrawer({
                   </div>
                 </section>
 
+                <section className="drawer-section">
+                  <div className="drawer-section-head">
+                    <h3>Flow options</h3>
+                    <span>{flowMaxDepth.trim() ? `Depth ${flowMaxDepth.trim()}` : "Unlimited"}</span>
+                  </div>
+
+                  <div className="flow-option-group">
+                    <label className="field-label" htmlFor="flow-max-depth">
+                      Max depth
+                    </label>
+                    <input
+                      id="flow-max-depth"
+                      className="path-input flow-depth-input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={flowMaxDepth}
+                      onChange={(event) => setFlowMaxDepth(event.target.value)}
+                      placeholder="Unlimited"
+                    />
+                    <p className="drawer-empty-line">
+                      Leave blank to expand the full tree, or set a depth like 2 to stop earlier.
+                    </p>
+                  </div>
+
+                  <div className="flow-toggle-list" role="group" aria-label="Call type filters">
+                    <label className="flow-toggle">
+                      <input
+                        type="checkbox"
+                        checked={includeStdlib}
+                        onChange={(event) => setIncludeStdlib(event.target.checked)}
+                      />
+                      <span>Stdlib calls</span>
+                    </label>
+                    <label className="flow-toggle">
+                      <input
+                        type="checkbox"
+                        checked={includeExternal}
+                        onChange={(event) => setIncludeExternal(event.target.checked)}
+                      />
+                      <span>External calls</span>
+                    </label>
+                    <label className="flow-toggle">
+                      <input
+                        type="checkbox"
+                        checked={includeBuiltin}
+                        onChange={(event) => setIncludeBuiltin(event.target.checked)}
+                      />
+                      <span>Builtin calls</span>
+                    </label>
+                  </div>
+                </section>
+
                 <form className="drawer-form" onSubmit={onAnalyzeFunction}>
                   <button className="primary-button full-width" type="submit" disabled={loadingAnalysis}>
                     {loadingAnalysis ? "Analyzing..." : "Analyze Function"}
@@ -258,7 +321,21 @@ export function ControlDrawer({
                       <p className="details-overview-text">{node.summary || "No summary available."}</p>
                     </div>
 
-                    <p className="details-summary">{node.summary || "No summary available for this node."}</p>
+                    <section className="drawer-section">
+                      <div className="drawer-section-head">
+                        <h3>Source snippet</h3>
+                        <span>{sourceSnippet ? "Code" : "Unavailable"}</span>
+                      </div>
+                      {sourceSnippet ? (
+                        <pre className="source-snippet">
+                          <code>{sourceSnippet}</code>
+                        </pre>
+                      ) : (
+                        <p className="drawer-empty-line">No source snippet is available for this node.</p>
+                      )}
+                    </section>
+
+                    {/* <p className="details-summary">{node.summary || "No summary available for this node."}</p> */}
 
                     <div className="details-stats">
                       <div className="details-stat">
