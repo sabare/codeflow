@@ -68,6 +68,7 @@ def analyze(
                 include_stdlib=include_stdlib,
                 include_external=include_external,
                 include_builtin=include_builtin,
+                async_enrichment=True,
             )
         logger.info("Returning project analysis for folder=%s", folder)
         return analysis
@@ -103,3 +104,15 @@ def functions(path: str) -> dict:
     except FileNotFoundError as exc:
         logger.warning("/functions rejected path=%s", path)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/flow-explanation")
+def flow_explanation(flow_fingerprint: str) -> dict:
+    logger.info("/flow-explanation requested fingerprint=%s", flow_fingerprint)
+    try:
+        from flow import get_flow_explanation_status
+
+        return get_flow_explanation_status(flow_fingerprint)
+    except Exception as exc:  # pragma: no cover - defensive API guard
+        logger.exception("Flow explanation lookup failed for fingerprint=%s", flow_fingerprint)
+        raise HTTPException(status_code=500, detail=f"Flow explanation lookup failed: {exc}") from exc

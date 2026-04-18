@@ -24,6 +24,7 @@ const MINIMAP_COLORS = {
   entrypoint: "#fb923c",
   helper: "#22c55e",
   function: "#60a5fa",
+  cluster: "#f59e0b",
 };
 
 function EmptyState({ isLoading }) {

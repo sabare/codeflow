@@ -29,6 +29,63 @@ function Section({ title, items, emptyLabel }) {
   );
 }
 
+function CompactSection({ title, items, emptyLabel }) {
+  const preview = items.slice(0, 4);
+  const remaining = Math.max(0, items.length - preview.length);
+
+  return (
+    <section className="drawer-section">
+      <div className="drawer-section-head">
+        <h3>{title}</h3>
+        <span>{items.length}</span>
+      </div>
+
+      {items.length > 0 ? (
+        <div className="compact-bucket">
+          <div className="compact-bucket-head">
+            <span className="compact-bucket-count">{items.length}</span>
+            <p>{preview.join(", ")}</p>
+          </div>
+          {remaining > 0 ? <p className="drawer-empty-line">+{remaining} more</p> : null}
+        </div>
+      ) : (
+        <p className="drawer-empty-line">{emptyLabel}</p>
+      )}
+    </section>
+  );
+}
+
+function FlowStepList({ steps }) {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    return null;
+  }
+
+  return (
+    <ol className="flow-step-list">
+      {steps.map((step, index) => {
+        const stepName = String(step?.name ?? "Step").trim() || "Step";
+        const stepSummary = String(step?.summary ?? "").trim();
+        const collapsedCount = Number(step?.collapsed_count ?? 0);
+        const collapseReason = String(step?.collapse_reason ?? "").trim();
+
+        return (
+          <li key={`${stepName}-${index}`} className="flow-step-item">
+            <div className="flow-step-index">{index + 1}</div>
+            <div className="flow-step-body">
+              <div className="flow-step-head">
+                <strong>{stepName}</strong>
+                {collapsedCount > 0 ? <span>{collapsedCount} hidden</span> : null}
+              </div>
+              {stepSummary ? <p>{stepSummary}</p> : null}
+              {collapseReason ? <small>{collapseReason}</small> : null}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export function ControlDrawer({
   open,
   activeTab,
@@ -69,8 +126,24 @@ export function ControlDrawer({
   const externalCalls = normalizeList(node?.externalCalls);
   const builtinCalls = normalizeList(node?.builtinCalls);
   const decorators = normalizeList(node?.decorators);
+  const collapsedMembers = normalizeList(node?.collapsedMembers);
+  const collapsedCount = Number(node?.collapsedCount ?? 0);
+  const collapseReason = String(node?.collapseReason ?? "").trim();
+  const isCluster = String(node?.kind ?? "") === "cluster" || collapsedCount > 0;
   const callPills = projectCalls.length > 0 ? projectCalls : directCalls;
   const hasAnalysis = Boolean(analysis?.tree);
+  const flowSteps = Array.isArray(analysis?.flow_steps) ? analysis.flow_steps : [];
+  const flowSummary = String(analysis?.flow_summary ?? "").trim();
+  const flowStatus = String(analysis?.flow_explanation_status ?? "").trim();
+
+  const flowStatusLabel =
+    flowStatus === "ready"
+      ? "Narrative ready"
+      : flowStatus === "pending"
+        ? "Narrative pending"
+        : flowStatus === "error"
+          ? "Narrative error"
+          : "Narrative unavailable";
 
   return (
     <>
@@ -315,6 +388,43 @@ export function ControlDrawer({
               <div className="drawer-panel" role="tabpanel">
                 {node ? (
                   <>
+                    <section className="drawer-section">
+                      <div className="drawer-section-head">
+                        <h3>Flow path</h3>
+                        <span>{flowSteps.length > 0 ? `${flowSteps.length} step${flowSteps.length === 1 ? "" : "s"}` : "Awaiting"}</span>
+                      </div>
+                      <div className="flow-path-meta">
+                        <span
+                          className={`status-pill ${
+                            flowStatus === "ready"
+                              ? "status-pill-success"
+                              : flowStatus === "pending"
+                                ? "status-pill-loading"
+                                : flowStatus === "error"
+                                  ? "status-pill-error"
+                                  : ""
+                          }`}
+                        >
+                          {flowStatusLabel}
+                        </span>
+                        {isCluster ? (
+                          <span className="flow-path-meta-chip">
+                            {collapsedCount || collapsedMembers.length || callPills.length} hidden helper
+                            {collapsedCount === 1 ? "" : "s"}
+                          </span>
+                        ) : null}
+                      </div>
+                      {flowSummary ? (
+                        <p className="details-overview-text flow-path-summary">{flowSummary}</p>
+                      ) : (
+                        <p className="drawer-empty-line">No flow explanation is available yet.</p>
+                      )}
+                      <FlowStepList steps={flowSteps} />
+                      {flowStatus === "error" && String(analysis?.flow_explanation_error ?? "").trim() ? (
+                        <p className="drawer-empty-line">{analysis.flow_explanation_error}</p>
+                      ) : null}
+                    </section>
+
                     <div className="details-overview">
                       <p className="details-overview-kicker">Selected node</p>
                       <h3 className="drawer-node-title">{node.label || "Untitled"}</h3>
@@ -335,7 +445,28 @@ export function ControlDrawer({
                       )}
                     </section>
 
-                    {/* <p className="details-summary">{node.summary || "No summary available for this node."}</p> */}
+                    {isCluster ? (
+                      <section className="drawer-section">
+                        <div className="drawer-section-head">
+                          <h3>Collapse details</h3>
+                          <span>{collapsedCount || collapsedMembers.length || 1}</span>
+                        </div>
+                        <p className="drawer-empty-line">
+                          {collapseReason || "This node collapses helper noise into a single cluster."}
+                        </p>
+                        {collapsedMembers.length > 0 ? (
+                          <div className="tag-list">
+                            {collapsedMembers.map((item) => (
+                              <span key={item} className="tag-pill">
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="drawer-empty-line">No hidden helpers were recorded.</p>
+                        )}
+                      </section>
+                    ) : null}
 
                     <div className="details-stats">
                       <div className="details-stat">
@@ -357,9 +488,21 @@ export function ControlDrawer({
                       items={callPills}
                       emptyLabel="No project calls were exposed for this node."
                     />
-                    <Section title="Stdlib" items={stdlibCalls} emptyLabel="No standard-library calls were exposed." />
-                    <Section title="External" items={externalCalls} emptyLabel="No external calls were exposed." />
-                    <Section title="Builtins" items={builtinCalls} emptyLabel="No builtin calls were exposed." />
+                    <CompactSection
+                      title="Stdlib"
+                      items={stdlibCalls}
+                      emptyLabel="No standard-library calls were exposed."
+                    />
+                    <CompactSection
+                      title="External"
+                      items={externalCalls}
+                      emptyLabel="No external calls were exposed."
+                    />
+                    <CompactSection
+                      title="Builtins"
+                      items={builtinCalls}
+                      emptyLabel="No builtin calls were exposed."
+                    />
                     <Section title="Decorators" items={decorators} emptyLabel="No decorators were exposed." />
                   </>
                 ) : (

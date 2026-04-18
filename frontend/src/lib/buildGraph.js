@@ -40,6 +40,13 @@ const ROLE_META = {
     width: 228,
     height: 110,
   },
+  cluster: {
+    label: "cluster",
+    accent: "cluster",
+    glyph: "◌",
+    width: 272,
+    height: 126,
+  },
 };
 
 function slugify(value) {
@@ -66,6 +73,10 @@ function collectChildNames(children) {
 }
 
 function inferRole(node, depth, childCount) {
+  if (String(node?.kind ?? "") === "cluster" || Number(node?.collapsed_count ?? 0) > 0) {
+    return "cluster";
+  }
+
   if (depth === 0) {
     return "root";
   }
@@ -100,6 +111,13 @@ function getNodeSize(role) {
 }
 
 function getCallList(node, childNodes) {
+  if (String(node?.kind ?? "") === "cluster") {
+    const collapsedMembers = normalizeList(node?.collapsed_members);
+    if (collapsedMembers.length > 0) {
+      return collapsedMembers;
+    }
+  }
+
   const projectCalls = normalizeList(node?.project_calls);
   if (projectCalls.length > 0) {
     return projectCalls;
@@ -158,12 +176,16 @@ function createNodeRecord(node, id, depth, childCount, rawChildren, role, order)
     data: {
       label: String(node?.name ?? "Untitled"),
       summary: String(node?.summary ?? ""),
+      kind: String(node?.kind ?? ""),
       calls: getCallList(node, rawChildren),
       projectCalls: normalizeList(node?.project_calls),
       stdlibCalls: normalizeList(node?.stdlib_calls),
       externalCalls: normalizeList(node?.external_calls),
       builtinCalls: normalizeList(node?.builtin_calls),
       decorators: normalizeList(node?.decorators),
+      collapsedMembers: normalizeList(node?.collapsed_members),
+      collapsedCount: Number(node?.collapsed_count ?? 0),
+      collapseReason: String(node?.collapse_reason ?? ""),
       depth,
       childCount,
       hasChildren: childCount > 0,

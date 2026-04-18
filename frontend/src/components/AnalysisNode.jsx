@@ -6,10 +6,17 @@ export function AnalysisNode({ data, selected }) {
   const role = String(data?.role ?? "function");
   const roleLabel = String(data?.roleLabel ?? role);
   const roleGlyph = String(data?.roleGlyph ?? "●");
+  const kind = String(data?.kind ?? "");
+  const collapsedCount = Number(data?.collapsedCount ?? 0);
+  const collapseReason = String(data?.collapseReason ?? "").trim();
+  const isCluster = kind === "cluster" || collapsedCount > 0;
   const badges = [];
 
   if (data?.depth === 0) {
     badges.push("root");
+  }
+  if (isCluster) {
+    badges.push(`collapsed ${collapsedCount || calls.length}`);
   }
   if (data?.recursive) {
     badges.push("recursive");
@@ -43,7 +50,9 @@ export function AnalysisNode({ data, selected }) {
           </span>
         </div>
         <span className="analysis-node-count">
-          {calls.length} call{calls.length === 1 ? "" : "s"}
+          {isCluster
+            ? `${collapsedCount || calls.length} hidden`
+            : `${calls.length} call${calls.length === 1 ? "" : "s"}`}
         </span>
       </div>
 
@@ -54,6 +63,12 @@ export function AnalysisNode({ data, selected }) {
       ) : (
         <p className="analysis-node-summary analysis-node-summary-empty">No summary available.</p>
       )}
+
+      {isCluster && collapseReason ? (
+        <p className="analysis-node-cluster-note" title={collapseReason}>
+          {collapseReason}
+        </p>
+      ) : null}
 
       <div className="analysis-node-footer">
         <span className="analysis-node-depth">Depth {data?.depth ?? 0}</span>

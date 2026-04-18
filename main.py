@@ -25,7 +25,13 @@ def main() -> None:
     analysis = build_analysis(root)
 
     if args.function:
-        result = build_flow_tree(analysis, args.function, args.depth)
+        result = build_flow_tree(
+            analysis,
+            args.function,
+            args.depth,
+            async_enrichment=False,
+            wait_for_explanation=True,
+        )
     else:
         result = analysis
 

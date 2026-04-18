@@ -6,10 +6,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from flow_utils import compact_tree, summarize_source
 
 
 logger = logging.getLogger("code-analysis-visualizer")
@@ -88,15 +89,10 @@ def _build_tree(path: Path, analysis: Dict[str, Any]) -> Dict[str, Any]:
 
     def summarize(name: str) -> str:
         source = sources.get(name, "")
-        if isinstance(source, str) and source.strip():
-            docstring = _extract_docstring(source)
-            if docstring:
-                return docstring[:120]
-
         child_count = len(project_graph.get(name, [])) if isinstance(project_graph.get(name, []), list) else 0
-        if child_count:
-            return f"Calls {child_count} project function(s)."
-        return "Calls 0 project functions."
+        if isinstance(source, str):
+            return summarize_source(name, source, child_count)
+        return summarize_source(name, "", child_count)
 
     def expand(name: str, path_stack: Set[str]) -> Dict[str, Any]:
         raw_children = project_graph.get(name, [])
@@ -106,6 +102,8 @@ def _build_tree(path: Path, analysis: Dict[str, Any]) -> Dict[str, Any]:
             "name": name,
             "summary": summarize(name),
             "children": [],
+            "kind": "function",
+            "source": str(sources.get(name, "")),
         }
 
         for child in children:
@@ -133,11 +131,18 @@ def _build_tree(path: Path, analysis: Dict[str, Any]) -> Dict[str, Any]:
 
         return node
 
-    return {
+    tree = {
         "name": _display_name(path),
         "summary": f"{len(roots)} entry point(s), {len(function_names)} analyzed symbol(s)",
         "children": [expand(root, {root}) for root in roots],
+        "kind": "root",
     }
+
+    compacted = compact_tree(tree, sources)
+    compacted["name"] = _display_name(path)
+    compacted["summary"] = f"{len(roots)} entry point(s), {len(function_names)} analyzed symbol(s)"
+    compacted["kind"] = "root"
+    return compacted
 
 
 def _display_name(path: Path) -> str:

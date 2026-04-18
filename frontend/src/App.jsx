@@ -23,6 +23,7 @@ export default function App() {
   const [includeExternal, setIncludeExternal] = useState(true);
   const [includeBuiltin, setIncludeBuiltin] = useState(true);
   const [analysis, setAnalysis] = useState(null);
+  const [analysisRequest, setAnalysisRequest] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState("browse");
@@ -49,6 +50,22 @@ export default function App() {
   );
   const graphTitle = String(analysis?.tree?.name ?? selectedFunction ?? currentDirectory ?? "graph");
   const hasGraph = graph.nodes.length > 0;
+
+  function buildAnalyzeParams(request) {
+    const params = new URLSearchParams({
+      path: request.path,
+      function: request.functionName,
+      include_stdlib: String(request.includeStdlib),
+      include_external: String(request.includeExternal),
+      include_builtin: String(request.includeBuiltin),
+    });
+
+    if (request.maxDepth !== null) {
+      params.set("max_depth", String(request.maxDepth));
+    }
+
+    return params;
+  }
 
   const searchResults = useMemo(() => {
     const query = paletteQuery.trim().toLowerCase();
@@ -164,6 +181,48 @@ export default function App() {
   }, [graph.nodes]);
 
   useEffect(() => {
+    if (!analysisRequest || analysis?.flow_explanation_status !== "pending") {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const pollExplanation = async () => {
+      try {
+        const fingerprint = String(analysis?.flow_fingerprint ?? "").trim();
+        if (!fingerprint) {
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/flow-explanation?flow_fingerprint=${encodeURIComponent(fingerprint)}`);
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        if (cancelled) {
+          return;
+        }
+
+        if (data?.flow_explanation_status && data.flow_explanation_status !== "pending") {
+          setAnalysis((current) => (current ? { ...current, ...data } : current));
+        }
+      } catch {
+        // Keep the deterministic graph visible; a later poll can retry.
+      }
+    };
+
+    const interval = window.setInterval(pollExplanation, 1800);
+    pollExplanation();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [analysis?.flow_explanation_status, analysis?.flow_fingerprint, analysisRequest]);
+
+  useEffect(() => {
     const onKeyDown = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -210,6 +269,7 @@ export default function App() {
     setLoadingDirectory(true);
     setError("");
     setAnalysis(null);
+    setAnalysisRequest(null);
 
     try {
       const response = await fetch(`${API_URL}/browse?path=${encodeURIComponent(trimmedPath)}`);
@@ -259,6 +319,7 @@ export default function App() {
     setLoadingFunctions(true);
     setError("");
     setAnalysis(null);
+    setAnalysisRequest(null);
     setDrawerTab("functions");
     setDrawerOpen(true);
 
@@ -320,19 +381,18 @@ export default function App() {
     setLoadingAnalysis(true);
     setError("");
     setAnalysis(null);
+    setAnalysisRequest(null);
 
     try {
-      const params = new URLSearchParams({
+      const request = {
         path: folderPath.trim(),
-        function: selectedFunction,
-        include_stdlib: String(includeStdlib),
-        include_external: String(includeExternal),
-        include_builtin: String(includeBuiltin),
-      });
-
-      if (parsedDepth !== null) {
-        params.set("max_depth", String(parsedDepth));
-      }
+        functionName: selectedFunction,
+        maxDepth: parsedDepth,
+        includeStdlib,
+        includeExternal,
+        includeBuiltin,
+      };
+      const params = buildAnalyzeParams(request);
 
       const response = await fetch(`${API_URL}/analyze?${params.toString()}`);
 
@@ -353,6 +413,7 @@ export default function App() {
       }
 
       setAnalysis(data);
+      setAnalysisRequest(request);
       setDrawerTab("node");
       setDrawerOpen(false);
     } catch (err) {

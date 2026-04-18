@@ -788,6 +788,128 @@ pre {
   color: #dcfce7;
 }
 
+.flow-path-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.flow-path-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 17, 24, 0.84);
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 0.78rem;
+}
+
+.flow-path-summary {
+  white-space: pre-line;
+}
+
+.flow-step-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-step-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
+  background: rgba(10, 12, 17, 0.78);
+}
+
+.flow-step-index {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.16);
+  color: #dbeafe;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.flow-step-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.flow-step-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.flow-step-head strong {
+  color: #f8fbff;
+  font-size: 0.9rem;
+  letter-spacing: -0.02em;
+}
+
+.flow-step-head span {
+  color: rgba(148, 163, 184, 0.76);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.flow-step-body p,
+.flow-step-body small {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.compact-bucket {
+  display: grid;
+  gap: 8px;
+  padding: 12px 13px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 16px;
+  background: rgba(10, 12, 17, 0.78);
+}
+
+.compact-bucket-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.compact-bucket-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.16);
+  color: #dbeafe;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.compact-bucket-head p {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.86);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .details-overview {
   display: grid;
   gap: 8px;
@@ -1139,6 +1261,10 @@ pre {
   border-color: rgba(34, 197, 94, 0.2);
 }
 
+.analysis-node-card[data-role="cluster"] {
+  border-color: rgba(250, 204, 21, 0.26);
+}
+
 .analysis-node-orb {
   position: absolute;
   top: -18px;
@@ -1210,6 +1336,11 @@ pre {
   background: rgba(251, 146, 60, 0.12);
 }
 
+.analysis-node-role-cluster {
+  color: #fef3c7;
+  background: rgba(250, 204, 21, 0.12);
+}
+
 .analysis-node-name {
   min-width: 0;
   color: #f8fbff;
@@ -1249,6 +1380,19 @@ pre {
 .analysis-node-summary-empty {
   color: rgba(148, 163, 184, 0.72);
   font-style: italic;
+}
+
+.analysis-node-cluster-note {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(250, 204, 21, 0.16);
+  border-radius: 12px;
+  background: rgba(250, 204, 21, 0.08);
+  color: #fef3c7;
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .analysis-node-footer {
