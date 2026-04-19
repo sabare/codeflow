@@ -6,6 +6,7 @@ import { buildGraph } from "./lib/buildGraph.js";
 import { downloadGraphPng, downloadGraphSvg } from "./lib/exportGraph.js";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const DEFAULT_VISIBLE_GRAPH_DEPTH = 1;
 
 export default function App() {
   const [folderPath, setFolderPath] = useState("");
@@ -24,6 +25,7 @@ export default function App() {
   const [includeBuiltin, setIncludeBuiltin] = useState(true);
   const [analysis, setAnalysis] = useState(null);
   const [analysisRequest, setAnalysisRequest] = useState(null);
+  const [expandedNodeIds, setExpandedNodeIds] = useState(() => new Set());
   const [selectedNodeId, setSelectedNodeId] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState("browse");
@@ -37,12 +39,15 @@ export default function App() {
   const exportMenuRef = useRef(null);
 
   const graph = useMemo(() => {
-    if (!analysis || typeof analysis.tree !== "object" || analysis.tree === null) {
+    if (!analysis || typeof analysis !== "object") {
       return { nodes: [], edges: [] };
     }
 
-    return buildGraph(analysis.tree);
-  }, [analysis]);
+    return buildGraph(analysis, {
+      expandedNodeIds,
+      defaultDepth: DEFAULT_VISIBLE_GRAPH_DEPTH,
+    });
+  }, [analysis, expandedNodeIds]);
 
   const selectedNode = useMemo(
     () => graph.nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -229,7 +234,7 @@ export default function App() {
         setPaletteOpen((current) => !current);
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "m") {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "m") {
         event.preventDefault();
         setExportMenuOpen((current) => !current);
       }
@@ -270,6 +275,7 @@ export default function App() {
     setError("");
     setAnalysis(null);
     setAnalysisRequest(null);
+    setExpandedNodeIds(new Set());
 
     try {
       const response = await fetch(`${API_URL}/browse?path=${encodeURIComponent(trimmedPath)}`);
@@ -320,6 +326,7 @@ export default function App() {
     setError("");
     setAnalysis(null);
     setAnalysisRequest(null);
+    setExpandedNodeIds(new Set());
     setDrawerTab("functions");
     setDrawerOpen(true);
 
@@ -382,6 +389,7 @@ export default function App() {
     setError("");
     setAnalysis(null);
     setAnalysisRequest(null);
+    setExpandedNodeIds(new Set());
 
     try {
       const request = {
@@ -414,7 +422,7 @@ export default function App() {
 
       setAnalysis(data);
       setAnalysisRequest(request);
-      setDrawerTab("node");
+      setDrawerTab("flow");
       setDrawerOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -429,6 +437,18 @@ export default function App() {
     if (!drawerOpen) {
       setDrawerOpen(true);
     }
+  }
+
+  function handleToggleNodeExpansion(nodeId) {
+    setExpandedNodeIds((current) => {
+      const next = new Set(current);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
   }
 
   function handleExportSvg() {
@@ -541,6 +561,7 @@ export default function App() {
         edges={graph.edges}
         selectedNodeId={selectedNodeId}
         onNodeSelect={handleSelectNode}
+        onNodeToggleExpand={handleToggleNodeExpansion}
         isLoading={loadingAnalysis}
       />
 

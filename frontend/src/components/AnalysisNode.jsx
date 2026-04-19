@@ -10,6 +10,9 @@ export function AnalysisNode({ data, selected }) {
   const collapsedCount = Number(data?.collapsedCount ?? 0);
   const collapseReason = String(data?.collapseReason ?? "").trim();
   const isCluster = kind === "cluster" || collapsedCount > 0;
+  const hiddenChildCount = Number(data?.hiddenChildCount ?? 0);
+  const canToggleExpand = Boolean(data?.canToggleExpand);
+  const isExpanded = Boolean(data?.expanded);
   const badges = [];
 
   if (data?.depth === 0) {
@@ -25,10 +28,16 @@ export function AnalysisNode({ data, selected }) {
     badges.push("truncated");
   }
 
+  const callCountLabel = isCluster
+    ? `${collapsedCount || calls.length} hidden`
+    : `${calls.length} call${calls.length === 1 ? "" : "s"}`;
+  const toggleLabel = hiddenChildCount > 0 ? `Expand +${hiddenChildCount}` : "Collapse";
+
   return (
     <div
       className={`analysis-node-card ${selected ? "analysis-node-card-selected" : ""}`}
       data-role={role}
+      data-kind={kind || "function"}
       title={summary || String(data?.label ?? "Untitled")}
       aria-label={`${String(data?.label ?? "Untitled")}: ${summary || "No summary available."}`}
     >
@@ -38,6 +47,7 @@ export function AnalysisNode({ data, selected }) {
         position={Position.Bottom}
         className="analysis-node-handle analysis-node-handle-source"
       />
+      <div className="analysis-node-accent" aria-hidden="true" />
       <div className="analysis-node-orb" />
       <div className="analysis-node-topline">
         <div className="analysis-node-titlewrap">
@@ -49,11 +59,26 @@ export function AnalysisNode({ data, selected }) {
             {data?.label}
           </span>
         </div>
-        <span className="analysis-node-count">
-          {isCluster
-            ? `${collapsedCount || calls.length} hidden`
-            : `${calls.length} call${calls.length === 1 ? "" : "s"}`}
-        </span>
+        <div className="analysis-node-actions">
+          <span className="analysis-node-count">{callCountLabel}</span>
+          {canToggleExpand ? (
+            <button
+              type="button"
+              className={`analysis-node-expand-button ${isExpanded ? "analysis-node-expand-button-open" : ""}`}
+              title={toggleLabel}
+              aria-label={toggleLabel}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (typeof data?.onToggleExpand === "function") {
+                  data.onToggleExpand();
+                }
+              }}
+            >
+              {hiddenChildCount > 0 ? `+${hiddenChildCount}` : "−"}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {summary ? (

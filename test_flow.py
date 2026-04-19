@@ -254,6 +254,45 @@ class FlowAnalysisTests(unittest.TestCase):
         truncated_nodes = _walk_nodes(truncated["tree"])
         self.assertTrue(any(bool(node.get("truncated")) for node in truncated_nodes))
 
+    def test_flow_response_contains_deduplicated_dag(self) -> None:
+        project_graph = {
+            "root": ["prepare", "execute"],
+            "prepare": ["shared_helper"],
+            "execute": ["shared_helper"],
+            "shared_helper": [],
+        }
+        sources = {
+            "root": "def root():\n    return execute()",
+            "prepare": "def prepare():\n    return shared_helper()",
+            "execute": "def execute():\n    return shared_helper()",
+            "shared_helper": "def shared_helper():\n    return 1",
+        }
+        analysis = _sample_analysis(project_graph, sources)
+
+        result = flow.build_flow_tree(
+            analysis,
+            "root",
+            async_enrichment=False,
+            wait_for_explanation=False,
+        )
+
+        graph = result.get("graph", {})
+        nodes = graph.get("nodes", [])
+        edges = graph.get("edges", [])
+        node_ids = {str(node.get("id", "")) for node in nodes}
+        edge_pairs = {(str(edge.get("source", "")), str(edge.get("target", ""))) for edge in edges}
+
+        self.assertEqual(node_ids, {"root", "prepare", "execute", "shared_helper"})
+        self.assertEqual(
+            edge_pairs,
+            {
+                ("root", "prepare"),
+                ("root", "execute"),
+                ("prepare", "shared_helper"),
+                ("execute", "shared_helper"),
+            },
+        )
+
     def test_project_overview_tree_compacts_helpers(self) -> None:
         project_graph = {
             "login": ["validate", "query_user"],

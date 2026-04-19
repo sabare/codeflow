@@ -4,10 +4,11 @@ import json
 import os
 import re
 import threading
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, Set
 
 from flow_utils import (
     build_flow_steps,
@@ -65,11 +66,6 @@ def build_flow_tree(
             "available_functions": sorted(project_graph.keys()),
         }
 
-    def _visible_calls(calls: object, enabled: bool) -> List[str]:
-        if not enabled or not isinstance(calls, list):
-            return []
-        return [normalize_whitespace(call) for call in calls if normalize_whitespace(call)]
-
     def _expand(name: str, depth: int, path: set[str]) -> Dict[str, Any]:
         project_children = _project_children(project_graph.get(name, []))
         source = normalize_whitespace(sources.get(name, ""))
@@ -119,6 +115,18 @@ def build_flow_tree(
         return node
 
     tree = compact_tree(_expand(root_function, 0, {root_function}), sources)
+    graph = _build_flow_dag(
+        root_function=root_function,
+        project_graph=project_graph,
+        stdlib_calls=stdlib_calls,
+        external_calls=external_calls,
+        builtin_calls=builtin_calls,
+        decorator_calls=decorator_calls,
+        sources=sources,
+        include_stdlib=include_stdlib,
+        include_external=include_external,
+        include_builtin=include_builtin,
+    )
     flow_steps = build_flow_steps(tree)
     flow_summary = flow_summary_from_steps(flow_steps)
     if not flow_summary:
@@ -186,6 +194,7 @@ def build_flow_tree(
         },
         "found": True,
         "tree": tree,
+        "graph": graph,
         "flow_steps": flow_steps,
         "flow_summary": flow_summary,
         "flow_fingerprint": request_fingerprint,
@@ -237,6 +246,122 @@ def _project_children(children: object) -> List[str]:
     if not isinstance(children, list):
         return []
     return [normalize_whitespace(child) for child in children if normalize_whitespace(child)]
+
+
+def _visible_calls(calls: object, enabled: bool) -> List[str]:
+    if not enabled or not isinstance(calls, list):
+        return []
+    return [normalize_whitespace(call) for call in calls if normalize_whitespace(call)]
+
+
+def _infer_graph_role(name: str, depth: int, child_count: int) -> str:
+    normalized = normalize_whitespace(name).lower()
+    if depth == 0:
+        return "root"
+    if depth == 1 and normalized in {"main", "run", "start", "entry", "app", "index", "init", "setup", "bootstrap", "execute"}:
+        return "entrypoint"
+    if child_count == 0:
+        return "helper"
+    if name and name[0].isupper():
+        return "class"
+    return "function"
+
+
+def _build_flow_dag(
+    *,
+    root_function: str,
+    project_graph: Dict[str, Any],
+    stdlib_calls: Dict[str, Any],
+    external_calls: Dict[str, Any],
+    builtin_calls: Dict[str, Any],
+    decorator_calls: Dict[str, Any],
+    sources: Dict[str, Any],
+    include_stdlib: bool,
+    include_external: bool,
+    include_builtin: bool,
+) -> Dict[str, Any]:
+    visited: Set[str] = set()
+    discovery_order: List[str] = []
+    edge_pairs: Set[tuple[str, str]] = set()
+    queue = deque([root_function])
+
+    while queue:
+        current = normalize_whitespace(queue.popleft())
+        if not current or current in visited:
+            continue
+        visited.add(current)
+        discovery_order.append(current)
+
+        children = sorted(set(_project_children(project_graph.get(current, []))))
+        for child in children:
+            edge_pairs.add((current, child))
+            if child not in visited and child not in queue:
+                queue.append(child)
+
+    if root_function not in visited:
+        visited.add(root_function)
+        discovery_order.insert(0, root_function)
+
+    depth_by_node: Dict[str, int] = {root_function: 0}
+    bfs_queue = deque([root_function])
+    outgoing_map: Dict[str, List[str]] = {}
+    for source, target in edge_pairs:
+        outgoing_map.setdefault(source, []).append(target)
+    for source in outgoing_map:
+        outgoing_map[source] = sorted(set(outgoing_map[source]))
+
+    while bfs_queue:
+        current = bfs_queue.popleft()
+        current_depth = depth_by_node.get(current, 0)
+        for child in outgoing_map.get(current, []):
+            next_depth = current_depth + 1
+            if child not in depth_by_node or next_depth < depth_by_node[child]:
+                depth_by_node[child] = next_depth
+                bfs_queue.append(child)
+
+    for name in discovery_order:
+        if name not in depth_by_node:
+            depth_by_node[name] = max(depth_by_node.values(), default=0) + 1
+
+    nodes: List[Dict[str, Any]] = []
+    for name in discovery_order:
+        children = outgoing_map.get(name, [])
+        source = str(sources.get(name, ""))
+        depth = depth_by_node.get(name, 0)
+        nodes.append(
+            {
+                "id": name,
+                "name": name,
+                "summary": summarize_source(name, source, len(children)),
+                "kind": "function",
+                "depth": depth,
+                "role": _infer_graph_role(name, depth, len(children)),
+                "calls": children,
+                "project_calls": children,
+                "stdlib_calls": _visible_calls(stdlib_calls.get(name, []), include_stdlib),
+                "external_calls": _visible_calls(external_calls.get(name, []), include_external),
+                "builtin_calls": _visible_calls(builtin_calls.get(name, []), include_builtin),
+                "decorators": _visible_calls(decorator_calls.get(name, []), True),
+                "collapsed_members": [],
+                "collapsed_count": 0,
+                "collapse_reason": "",
+                "recursive": False,
+                "truncated": False,
+                "source": source,
+                "child_count": len(children),
+            }
+        )
+
+    edges = [
+        {"id": f"{source}->{target}", "source": source, "target": target}
+        for source, target in sorted(edge_pairs, key=lambda pair: (depth_by_node.get(pair[0], 0), pair[0], pair[1]))
+    ]
+
+    return {
+        "root": root_function,
+        "nodes": nodes,
+        "edges": edges,
+    }
 
 
 def _depth_limit_summary(project_children: Sequence[str]) -> str:

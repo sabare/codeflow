@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set
@@ -14,6 +15,7 @@ from flow_utils import compact_tree, summarize_source
 
 
 logger = logging.getLogger("code-analysis-visualizer")
+DEV_MOCK_MODE_ENV = "CODEFLOW_DEV_MOCK_MODE"
 
 
 try:
@@ -25,18 +27,29 @@ except Exception:  # pragma: no cover - fallback for missing analyzer imports
 def build_analysis(path: Path) -> Dict[str, Any]:
     logger.info("build_analysis started for path=%s", path)
     if _raw_build_analysis is None:
-        logger.info("Using mock analysis because the real analyzer import is unavailable")
-        return _mock_analysis()
+        message = "Analyzer import is unavailable."
+        if _dev_mock_mode_enabled():
+            logger.warning("%s Using mock analysis because %s=1.", message, DEV_MOCK_MODE_ENV)
+            return _mock_analysis()
+        raise RuntimeError(f"{message} Set {DEV_MOCK_MODE_ENV}=1 to allow mock fallback in dev mode.")
 
     try:
         raw = _raw_build_analysis(path)
     except Exception as exc:
-        logger.exception("Using mock analysis because the real analyzer raised: %s", exc)
-        return _mock_analysis()
+        if _dev_mock_mode_enabled():
+            logger.exception("Using mock analysis because the real analyzer raised and %s=1: %s", DEV_MOCK_MODE_ENV, exc)
+            return _mock_analysis()
+        raise RuntimeError(f"Analyzer failed for {path}: {exc}") from exc
 
     if not isinstance(raw, dict):
-        logger.warning("Using mock analysis because the real analyzer returned %s instead of dict", type(raw).__name__)
-        return _mock_analysis()
+        if _dev_mock_mode_enabled():
+            logger.warning(
+                "Using mock analysis because the real analyzer returned %s and %s=1",
+                type(raw).__name__,
+                DEV_MOCK_MODE_ENV,
+            )
+            return _mock_analysis()
+        raise RuntimeError(f"Analyzer returned {type(raw).__name__} instead of dict.")
 
     if isinstance(raw.get("tree"), dict):
         logger.info("Raw analyzer already returned a tree for path=%s", path)
@@ -46,6 +59,11 @@ def build_analysis(path: Path) -> Dict[str, Any]:
     raw["tree"] = _build_tree(path, raw)
     logger.info("Built flow tree for path=%s", path)
     return raw
+
+
+def _dev_mock_mode_enabled() -> bool:
+    value = str(os.getenv(DEV_MOCK_MODE_ENV, "")).strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def _build_tree(path: Path, analysis: Dict[str, Any]) -> Dict[str, Any]:

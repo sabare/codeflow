@@ -144,6 +144,8 @@ export function ControlDrawer({
         : flowStatus === "error"
           ? "Narrative error"
           : "Narrative unavailable";
+  const drawerTitle =
+    activeTab === "node" ? "Node Inspector" : activeTab === "flow" ? "Flow Narrative" : "Project Controls";
 
   return (
     <>
@@ -158,7 +160,7 @@ export function ControlDrawer({
           <div className="drawer-head">
             <div>
               <p className="drawer-kicker">Code Analysis Visualizer</p>
-              <h2>{activeTab === "node" ? "Node Inspector" : "Project Controls"}</h2>
+              <h2>{drawerTitle}</h2>
             </div>
             <button
               className="icon-button"
@@ -188,6 +190,15 @@ export function ControlDrawer({
               aria-selected={activeTab === "functions"}
             >
               Functions
+            </button>
+            <button
+              type="button"
+              className={`drawer-tab ${activeTab === "flow" ? "drawer-tab-active" : ""}`}
+              onClick={() => onTabChange("flow")}
+              role="tab"
+              aria-selected={activeTab === "flow"}
+            >
+              Flow
             </button>
             <button
               type="button"
@@ -384,47 +395,57 @@ export function ControlDrawer({
               </div>
             ) : null}
 
+            {activeTab === "flow" ? (
+              <div className="drawer-panel" role="tabpanel">
+                {hasAnalysis ? (
+                  <section className="drawer-section">
+                    <div className="drawer-section-head">
+                      <h3>Flow path</h3>
+                      <span>{flowSteps.length > 0 ? `${flowSteps.length} step${flowSteps.length === 1 ? "" : "s"}` : "Awaiting"}</span>
+                    </div>
+                    <div className="flow-path-meta">
+                      <span
+                        className={`status-pill ${
+                          flowStatus === "ready"
+                            ? "status-pill-success"
+                            : flowStatus === "pending"
+                              ? "status-pill-loading"
+                              : flowStatus === "error"
+                                ? "status-pill-error"
+                                : ""
+                        }`}
+                      >
+                        {flowStatusLabel}
+                      </span>
+                      {isCluster ? (
+                        <span className="flow-path-meta-chip">
+                          {collapsedCount || collapsedMembers.length || callPills.length} hidden helper
+                          {collapsedCount === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </div>
+                    {flowSummary ? (
+                      <p className="details-overview-text flow-path-summary">{flowSummary}</p>
+                    ) : (
+                      <p className="drawer-empty-line">No flow explanation is available yet.</p>
+                    )}
+                    <FlowStepList steps={flowSteps} />
+                    {flowStatus === "error" && String(analysis?.flow_explanation_error ?? "").trim() ? (
+                      <p className="drawer-empty-line">{analysis.flow_explanation_error}</p>
+                    ) : null}
+                  </section>
+                ) : (
+                  <div className="drawer-empty-state">
+                    <p className="drawer-empty-copy">Run an analysis first to view the flow narrative.</p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             {activeTab === "node" ? (
               <div className="drawer-panel" role="tabpanel">
                 {node ? (
                   <>
-                    <section className="drawer-section">
-                      <div className="drawer-section-head">
-                        <h3>Flow path</h3>
-                        <span>{flowSteps.length > 0 ? `${flowSteps.length} step${flowSteps.length === 1 ? "" : "s"}` : "Awaiting"}</span>
-                      </div>
-                      <div className="flow-path-meta">
-                        <span
-                          className={`status-pill ${
-                            flowStatus === "ready"
-                              ? "status-pill-success"
-                              : flowStatus === "pending"
-                                ? "status-pill-loading"
-                                : flowStatus === "error"
-                                  ? "status-pill-error"
-                                  : ""
-                          }`}
-                        >
-                          {flowStatusLabel}
-                        </span>
-                        {isCluster ? (
-                          <span className="flow-path-meta-chip">
-                            {collapsedCount || collapsedMembers.length || callPills.length} hidden helper
-                            {collapsedCount === 1 ? "" : "s"}
-                          </span>
-                        ) : null}
-                      </div>
-                      {flowSummary ? (
-                        <p className="details-overview-text flow-path-summary">{flowSummary}</p>
-                      ) : (
-                        <p className="drawer-empty-line">No flow explanation is available yet.</p>
-                      )}
-                      <FlowStepList steps={flowSteps} />
-                      {flowStatus === "error" && String(analysis?.flow_explanation_error ?? "").trim() ? (
-                        <p className="drawer-empty-line">{analysis.flow_explanation_error}</p>
-                      ) : null}
-                    </section>
-
                     <div className="details-overview">
                       <p className="details-overview-kicker">Selected node</p>
                       <h3 className="drawer-node-title">{node.label || "Untitled"}</h3>
